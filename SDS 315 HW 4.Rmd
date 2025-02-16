@@ -1,0 +1,227 @@
+---
+title: "SDS 315 HW 4"
+subtitle: "https://github.com/sophiayang5/SDS-315-HW-4"
+author: "Sophia Yang (sy23928)"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 5
+    number_sections: false
+date: "2025-02-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(ggplot2)
+library(tidyverse)
+library(mosaic)
+```
+
+\newpage
+# Problem 1: Iron Bank
+
+```{r}
+expected = 0.024
+num_trades = 2021
+
+# create a chi-sq function
+chi_squared_statistic = function(observed, expected) {
+  sum((observed - expected)^2 / expected)
+}
+
+# simulate 100000 times
+trades_chi2_sim = do(100000)*{
+  simulated_trades = rbinom(1, num_trades, expected)
+  this_chi2 = chi_squared_statistic(simulated_trades, expected*num_trades)
+  c(chi2 = this_chi2) # return a vector with names and values
+}
+
+# plot the chi-sqs
+ggplot(trades_chi2_sim) + 
+  geom_histogram(aes(x = chi2)) +
+  labs(
+    title = "Chi-Square Distribution of Flagged Trades",
+    x = "Chi-Square",
+    y = "Count"
+  )
+
+# create a chi-sq for our scenario
+trades_chi2 = chi_squared_statistic(70, num_trades*expected)
+
+# find the p-val
+trades_chi2_sim |>
+  summarize(count(chi2 >= trades_chi2)/n())
+```
+
+The null hypothesis is that the rate of Iron Bank's flagged securities trades are at the same 2.4% baseline rate as other traders. I used the chi-square test statistic to measure the evidence against the null hypothesis. The probability distribution of the chi-square (assuming the null hypothesis is true) is plotted above. The p-value is 0.0024 (assuming the null hypothesis is true). Based on the p-value of the chi-square we got for the Iron Bank, the null hypothesis does not look plausible, because the p-value, and therefore the probability of having 70 flagged trades out of 2021 trades, is super low.
+
+\newpage
+# Problem 2: Health Inspections
+
+```{r}
+expected = 0.03
+num_health = 50
+
+# simulate 100000 times
+health_chi2_sim = do(100000)*{
+  simulated_health = rbinom(1, num_health, expected)
+  this_chi2 = chi_squared_statistic(simulated_health, expected*num_health)
+  c(chi2 = this_chi2) # return a vector with names and values
+}
+
+# plot the chi-sqs
+ggplot(health_chi2_sim) + 
+  geom_histogram(aes(x = chi2)) +
+  labs(
+    title = "Chi-Square Distribution of Health Code Violations",
+    x = "Chi-Square",
+    y = "Count"
+  )
+
+# create a chi-sq for our scenario
+health_chi2 = chi_squared_statistic(8, num_health*expected)
+
+# find the p-val
+trades_chi2_sim |>
+  summarize(count(chi2 >= health_chi2)/n())
+```
+
+The null hypothesis is that the rate of Gourmet Bites's health code violations are at the same 3% baseline rate as other restaurants. I used the chi-square test statistic to measure the evidence against the null hypothesis. The probability distribution of the chi-square (assuming the null hypothesis is true) is plotted above. The p-value is extremely close to 0 (assuming the null hypothesis is true). Based on the p-value of the chi-square we got for Gourmet Bites, the null hypothesis does not look plausible, because the p-value, and therefore the probability of having 8 health code violations out of 50 health inspections, is super low.
+
+\newpage
+# Problem 3: Evaluating Jury Selection for Bias
+
+```{r}
+expected = c(One = 0.3, Two = 0.25, Three = 0.2, Four = 0.15, Five = 0.1)
+observed =  c(One = 85, Two = 56, Three = 59, Four = 27, Five = 13)
+num_jurors = 240
+
+# simulate 100000 times
+jurors_chi2_sim = do(100000)*{
+  simulated_jurors = rmultinom(1, num_jurors, expected)
+  this_chi2 = chi_squared_statistic(simulated_jurors, expected*num_jurors)
+  c(chi2 = this_chi2) # return a vector with names and values
+}
+
+# plot the chi-sqs
+ggplot(jurors_chi2_sim) + 
+  geom_histogram(aes(x = chi2)) +
+  labs(
+    title = "Chi-Square Distribution of Jurors",
+    x = "Chi-Square",
+    y = "Count"
+  )
+
+# create a chi-sq for our scenario
+jurors_chi2 = chi_squared_statistic(observed, num_jurors*expected)
+
+# find the p-val
+jurors_chi2_sim |>
+  summarize(count(chi2 >= jurors_chi2)/n())
+```
+
+The null hypothesis is that juries selected by a particular judge have proportional representation from racial/ethnic groups with the county's eligible jury population. I used the chi-square test statistic to measure the evidence against the null hypothesis. The probability distribution of the chi-square (assuming the null hypothesis is true) is plotted above. The p-value is 0.014 (assuming the null hypothesis is true). Based on the p-value of the chi-square we got for the jurors, the null hypothesis does not look plausible, because the p-value, and therefore the probability of having that racial/ethnic distribution, is low. Other explanations might be that some racial/ethnic groups are more likely to be "excused for hardship" or removed "for cause," and thus alter the proportion of that race/ethnicity represented in juries.
+
+\newpage
+# Problem 4: LLM Watermarking
+
+```{r}
+letters <- read.csv("letter_frequencies.csv")
+```
+
+## Part A.
+
+```{r}
+# read the sentences
+brown <- readLines("brown_sentences.txt", n = -1)
+
+# function to compile the chi-square distribution
+calculate_chi_square = function(sent, freq_table) {
+  # ensure letter frequencies are normalized and sum to 1
+  freq_table$Probability = freq_table$Probability / sum(freq_table$Probability)
+  
+  # remove non-letters and convert to uppercase
+  clean_sent = gsub("[^A-Za-z] ", "", sent)
+  clean_sent = toupper(clean_sent)
+  
+  # count each letter's frequency
+  observed_letters = table(factor(strsplit(clean_sent, "")[[1]], levels = freq_table$Letter))
+  
+  # find expected counts for each letter
+  total_letters = sum(observed_letters)
+  expected_letters = total_letters * freq_table$Probability
+  
+  # chi square
+  chi_squared_stat = sum((observed_letters - expected_letters)^2 / expected_letters)
+  
+  return(chi_squared_stat)
+}
+
+# find chi square of all sentences
+chi_sq = rep(0, length(brown))
+for(x in 1:length(brown)) {
+  chi_sq[x] =  calculate_chi_square(brown[x], letters)
+}
+
+# convert chi_sq to a dataframe
+chi_sq = data.frame(chi_sq = chi_sq)
+
+# graph the null distribution
+ggplot(chi_sq) + geom_histogram(aes(x = chi_sq)) +
+  labs(
+    title = "Null Distribution of Letter Frequencies",
+    x = "Chi-Square",
+    y = "Count"
+  )
+```
+
+\newpage
+## Part B.
+
+```{r}
+# create a vector for the test sentences
+test_sents <- c(
+  "She opened the book and started to read the first chapter, eagerly anticipating what might come next.",
+  "Despite the heavy rain, they decided to go for a long walk in the park, crossing the main avenue by the fountain in the center.",
+  "The museum’s new exhibit features ancient artifacts from various civilizations around the world.",
+  "He carefully examined the document, looking for any clues that might help solve the mystery.",
+  "The students gathered in the auditorium to listen to the guest speaker’s inspiring lecture.",
+  "Feeling vexed after an arduous and zany day at work, she hoped for a peaceful and quiet evening at home, cozying up after a quick dinner with some TV, or maybe a book on her upcoming visit to Auckland.",
+  "The chef demonstrated how to prepare a delicious meal using only locally sourced ingredients, focusing mainly on some excellent dinner recipes from Spain.",
+  "They watched the sunset from the hilltop, marveling at the beautiful array of colors in the sky.",
+  "The committee reviewed the proposal and provided many points of useful feedback to improve the project’s effectiveness.",
+  "Despite the challenges faced during the project, the team worked tirelessly to ensure its successful completion, resulting in a product that exceeded everyone’s expectations."
+)
+
+# find the chi-square for each sentence
+test_chi_sq = rep(0, 10)
+for (x in 1:10) {
+  test_chi_sq[x] = calculate_chi_square(test_sents[x], letters)
+}
+
+# function to calculate p-values
+calculate_p_val = function(chi2, null_distribution) {
+  p_val = mean(null_distribution >= chi2)
+  return(p_val)
+}
+
+# find the p-val for each sentence's chi-square
+p_val = rep(0, 10)
+for (x in 1:10) {
+  p_val[x] = calculate_p_val(test_chi_sq[x], chi_sq)
+}
+```
+
+| Sentence | P-Value |
+|----------|---------|
+| 1        | 0.513   |
+| 2        | 0.926   |
+| 3        | 0.076   |
+| 4        | 0.489   |
+| 5        | 0.484   |
+| 6        | 0.009   |
+| 7        | 0.328   |
+| 8        | 0.988   |
+| 9        | 0.084   |
+| 10       | 0.059   |
+Sentence 6 has been produced by an LLM. Due to the p-value of the sentence's chi-square statistic for its letter frequencies (0.009), I can deduce that the likelihood of getting those letter frequencies is extremely low, assuming the null hypothesis (the sentence was not made by an LLM) is true.
